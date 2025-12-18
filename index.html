@@ -1338,14 +1338,18 @@
    * Wipe All
    ********************/
   $("btnWipe").addEventListener("click", ()=>{
-    const ok = confirm("Wipe ALL data from this PC/browser? This cannot be undone.");
-    if(!ok) return;
-    localStorage.removeItem(STORE_KEY);
-    toast("All data wiped.");
-    renderAlerts();
-    applyFiltersAndRender();
-  });
+  const pwd = prompt("Enter wipe password:");
+  if (pwd === null) return; // user cancelled
+  if (pwd !== "Phwipe1") { toast("Wrong password."); return; }
 
+  const ok = confirm("Wipe ALL data from this PC/browser? This cannot be undone.");
+  if(!ok) return;
+
+  localStorage.removeItem(STORE_KEY);
+  toast("All data wiped.");
+  renderAlerts();
+  applyFiltersAndRender();
+});
   /********************
    * Init
    ********************/
