@@ -993,10 +993,20 @@
   /********************
    * Alerts: only expired or expiring soon for SENT
    ********************/
+function latestByCrashCart(rows){
+  const map = new Map();
+  for (const r of rows){
+    if (!map.has(r.crashNumber)){
+      map.set(r.crashNumber, r); // newest-first => أول واحد هو الأحدث
+    }
+  }
+  return [...map.values()];
+}
+  
   function renderAlerts(){
     const rows = loadLogs();
-    const sent = rows.filter(r=> r.action === "sent" && r.expiryDate && r.firstMedication);
-
+   const latest = latestByCrashCart(rows);
+   const sent = latest.filter(r=> r.action === "sent" && r.expiryDate && r.firstMedication);
     const alerts = [];
     for(const r of sent){
       const st = expiryStateForSent(r.expiryDate);
