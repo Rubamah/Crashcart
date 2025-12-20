@@ -411,7 +411,7 @@
             <p class="hint">Scan or type the crash cart number and badges.</p>
           </div>
           <div class="sectionLabel">
-            <span class="pill">Local storage</span>
+            <span class="pill">Firebase</span>
           </div>
         </div>
 
@@ -496,13 +496,13 @@
                   <option>Epinephrine 1mg/10m(0.1g/ml)</option>
                   <option>Epinephrine 1mg/mL</option>
                   <option>Adenosine 6 mg/2ml</option>
-                  <option>Calcium Chloride 10% </option>
+                  <option>Calcium Chloride 10%</option>
                   <option>Sodium Bicarbonate 4.2g/50ml</option>
-                  <option>Dextrose 50% </option>
+                  <option>Dextrose 50%</option>
                   <option>Lidocaine 2% (100mg/5ml)</option>
                   <option>Atropine 1mg/10ml</option>
                   <option>Atropine 500mcg or 600mcg/ml</option>
-                  <option>Water for Injection </option>
+                  <option>Water for Injection</option>
                 </select>
 
                 <input id="expiryDate" type="date" aria-label="Expiry date for selected medication" />
@@ -585,17 +585,17 @@
             <label for="fMedication">Medication</label>
             <select id="fMedication">
               <option value="">All</option>
-                  <option>Amiodarone 150mg/3ml</option>
-                  <option>Epinephrine 1mg/10m(0.1g/ml)</option>
-                  <option>Epinephrine 1mg/mL</option>
-                  <option>Adenosine 6 mg/2ml</option>
-                  <option>Calcium Chloride 10% </option>
-                  <option>Sodium Bicarbonate 4.2g/50ml</option>
-                  <option>Dextrose 50% </option>
-                  <option>Lidocaine 2% (100mg/5ml)</option>
-                  <option>Atropine 1mg/10ml</option>
-                  <option>Atropine 500mcg or 600mcg/ml</option>
-                  <option>Water for Injection </option>
+              <option>Amiodarone 150mg/3ml</option>
+              <option>Epinephrine 1mg/10m(0.1g/ml)</option>
+              <option>Epinephrine 1mg/mL</option>
+              <option>Adenosine 6 mg/2ml</option>
+              <option>Calcium Chloride 10%</option>
+              <option>Sodium Bicarbonate 4.2g/50ml</option>
+              <option>Dextrose 50%</option>
+              <option>Lidocaine 2% (100mg/5ml)</option>
+              <option>Atropine 1mg/10ml</option>
+              <option>Atropine 500mcg or 600mcg/ml</option>
+              <option>Water for Injection</option>
             </select>
           </div>
 
@@ -741,22 +741,66 @@
 
 <div class="toast noPrint" id="toast"></div>
 
+<!-- ✅ Firebase Realtime Database (CDN / Module) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+  import { getDatabase, ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC4wEKzPhnvXv-oIoMchxnGFMXxx4YYQws",
+    authDomain: "crash-cart-aff89.firebaseapp.com",
+    databaseURL: "https://crash-cart-aff89-default-rtdb.firebaseio.com",
+    projectId: "crash-cart-aff89",
+    storageBucket: "crash-cart-aff89.firebasestorage.app",
+    messagingSenderId: "1039772978964",
+    appId: "1:1039772978964:web:1593628f5198dab33c7c01"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // Auth (anonymous)
+  const auth = getAuth(app);
+  try { await signInAnonymously(auth); } catch(e){ console.error("Anon auth failed:", e); }
+
+  const LOGS_PATH = "crashCart/logs";
+
+  // WRITE
+  window.addLogToFirebase = async (record) => {
+    const newRef = push(ref(db, LOGS_PATH));
+    await set(newRef, record);
+  };
+
+  // LIVE READ
+  window.listenFirebaseLogs = (cb) => {
+    onValue(ref(db, LOGS_PATH), snap => {
+      const data = snap.val() || {};
+      const rows = Object.entries(data).map(([k,v]) => ({ _key:k, ...v }));
+      // newest first
+      rows.sort((a,b)=> (b.timestamp||"").localeCompare(a.timestamp||""));
+      cb(rows);
+    });
+  };
+
+  // WIPE ALL
+  window.wipeFirebaseLogs = async () => {
+    await remove(ref(db, LOGS_PATH));
+  };
+</script>
+
 <script>
   /********************
-   * Storage + Utils
+   * Storage + Utils  (Firebase instead of localStorage)
    ********************/
-  const STORE_KEY = "crash_cart_tracker_v1";
   const ALERT_SOON_DAYS = 7;
-
   const $ = (id)=>document.getElementById(id);
 
-  function loadLogs(){
-    try{ return JSON.parse(localStorage.getItem(STORE_KEY) || "[]"); }
-    catch{ return []; }
-  }
-  function saveLogs(rows){
-    localStorage.setItem(STORE_KEY, JSON.stringify(rows));
-  }
+  // 🔥 All rows come from Firebase listener
+  let ALL_ROWS = [];
+
+  function loadLogs(){ return ALL_ROWS; }
+  function saveLogs(_rows){ /* no-op; Firebase is source of truth */ }
 
   function toast(msg){
     const t = $("toast");
@@ -798,7 +842,6 @@
 
   function formatDateTime(iso){
     const d = new Date(iso);
-    // Nice local display without seconds
     return d.toLocaleString([], {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
   }
 
@@ -874,7 +917,6 @@
   /********************
    * Scan/Type rules:
    * - Crash + badges only
-   * - Location is search-only (no scan parsing)
    ********************/
   const crashNumber = $("crashNumber");
   crashNumber.addEventListener("blur", ()=> crashNumber.value = digitsOnly(crashNumber.value));
@@ -899,7 +941,7 @@
   });
 
   /********************
-   * Save
+   * Save (Firebase)
    ********************/
   $("btnClear").addEventListener("click", ()=>{
     crashNumber.value = "";
@@ -945,7 +987,7 @@
     return "";
   }
 
-  $("btnSave").addEventListener("click", ()=>{
+  $("btnSave").addEventListener("click", async ()=>{
     const err = validateEntry();
     if(err){ toast(err); return; }
 
@@ -956,7 +998,6 @@
       crashNumber: digitsOnly(crashNumber.value),
       action: a,
 
-      // unified fields
       location: "",
       badge1: "",
       badge2: "",
@@ -980,33 +1021,36 @@
       record.returnReason = $("returnReason").value;               // used/expired
     }
 
-    const rows = loadLogs();
-    rows.unshift(record); // newest first
-    saveLogs(rows);
-
-    toast("Saved.");
-    renderAlerts();
-    // quick clear for next entry
-    $("btnClear").click();
+    try{
+      if(!window.addLogToFirebase) throw new Error("Firebase not loaded");
+      await window.addLogToFirebase(record);
+      toast("Saved.");
+      $("btnClear").click();
+      // alerts/report auto-refresh via Firebase listener
+    } catch(e){
+      console.error(e);
+      toast("Save failed. Check Firebase rules/network.");
+    }
   });
 
   /********************
-   * Alerts: only expired or expiring soon for SENT
+   * Alerts: only expired or expiring soon for SENT (latest only)
    ********************/
-function latestByCrashCart(rows){
-  const map = new Map();
-  for (const r of rows){
-    if (!map.has(r.crashNumber)){
-      map.set(r.crashNumber, r); // newest-first => أول واحد هو الأحدث
+  function latestByCrashCart(rows){
+    const map = new Map();
+    for (const r of rows){
+      if (!map.has(r.crashNumber)){
+        map.set(r.crashNumber, r); // newest-first => first is latest
+      }
     }
+    return [...map.values()];
   }
-  return [...map.values()];
-}
-  
+
   function renderAlerts(){
     const rows = loadLogs();
-   const latest = latestByCrashCart(rows);
-   const sent = latest.filter(r=> r.action === "sent" && r.expiryDate && r.firstMedication);
+    const latest = latestByCrashCart(rows);
+    const sent = latest.filter(r=> r.action === "sent" && r.expiryDate && r.firstMedication);
+
     const alerts = [];
     for(const r of sent){
       const st = expiryStateForSent(r.expiryDate);
@@ -1026,12 +1070,11 @@ function latestByCrashCart(rows){
       }
     }
 
-    // sort: expired first, then soon by soonest
+    // sort: expired first, then soon by soonest date
     alerts.sort((a,b)=>{
       const aIsExp = a.type === "red" ? 0 : 1;
       const bIsExp = b.type === "red" ? 0 : 1;
       if(aIsExp !== bIsExp) return aIsExp - bIsExp;
-      // compare dates inside meta by grabbing YYYY-MM-DD pattern
       const da = (a.meta.match(/\d{4}-\d{2}-\d{2}/)||["9999-12-31"])[0];
       const db = (b.meta.match(/\d{4}-\d{2}-\d{2}/)||["9999-12-31"])[0];
       return da.localeCompare(db);
@@ -1190,11 +1233,11 @@ function latestByCrashCart(rows){
     const latestByCart = new Map();
     for(const r of rows){
       if(!latestByCart.has(r.crashNumber)){
-        latestByCart.set(r.crashNumber, r); // rows are stored newest-first
+        latestByCart.set(r.crashNumber, r); // rows are newest-first
       }
     }
     let available = 0, sent = 0, red = 0;
-    for(const [cc, r] of latestByCart.entries()){
+    for(const r of latestByCart.values()){
       if(r.action === "return"){
         available++;
       } else if(r.action === "sent"){
@@ -1345,30 +1388,54 @@ function latestByCrashCart(rows){
   $("btnPrintReport").addEventListener("click", ()=> window.print());
 
   /********************
-   * Wipe All
+   * Wipe All (Firebase)
    ********************/
-  $("btnWipe").addEventListener("click", ()=>{
-  const pwd = prompt("Enter wipe password:");
-  if (pwd === null) return; // user cancelled
-  if (pwd !== "Phwipe1") { toast("Wrong password."); return; }
+  $("btnWipe").addEventListener("click", async ()=>{
+    const pwd = prompt("Enter wipe password:");
+    if (pwd === null) return;
+    if (pwd !== "Phwipe1") { toast("Wrong password."); return; }
 
-  const ok = confirm("Wipe ALL data from this PC/browser? This cannot be undone.");
-  if(!ok) return;
+    const ok = confirm("Wipe ALL data from this database? This cannot be undone.");
+    if(!ok) return;
 
-  localStorage.removeItem(STORE_KEY);
-  toast("All data wiped.");
-  renderAlerts();
-  applyFiltersAndRender();
-});
+    try{
+      if(!window.wipeFirebaseLogs) throw new Error("Firebase not loaded");
+      await window.wipeFirebaseLogs();
+      toast("All data wiped.");
+      // listener will refresh UI
+    } catch(e){
+      console.error(e);
+      toast("Wipe failed. Check Firebase rules/network.");
+    }
+  });
+
   /********************
-   * Init
+   * Init (listen to Firebase) — safe wait
    ********************/
-  toggleActionFields();
-  renderAlerts();
-  applyFiltersAndRender();
+  async function waitForFirebase(){
+    for(let i=0;i<60;i++){
+      if(window.listenFirebaseLogs) return true;
+      await new Promise(r=>setTimeout(r,50));
+    }
+    return false;
+  }
 
-  // If someone opens directly to Report, keep it stable
-  showEntry();
+  (async ()=>{
+    toggleActionFields();
+
+    const ok = await waitForFirebase();
+    if(ok){
+      window.listenFirebaseLogs((rows)=>{
+        ALL_ROWS = rows;
+        renderAlerts();
+        applyFiltersAndRender();
+      });
+    } else {
+      toast("Firebase not loaded.");
+    }
+
+    showEntry();
+  })();
 </script>
 </body>
 </html>
